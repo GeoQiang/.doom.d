@@ -1,2 +1,2 @@
-# .doom.d
+# doom emacs configuration
 doom emacs configuration
