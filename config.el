@@ -3,20 +3,19 @@
 ;; Place your private configuration here! Remember, you do not need to run 'doom
 ;; sync' after modifying this file!
 
-
-  (defconst my-emacs-d (file-name-as-directory "~/.doom.d/")
+(defconst my-emacs-d (file-name-as-directory "~/.doom.d/")
    "Directory of emacs.d.")
-  (defconst my-lisp-dir (concat my-emacs-d "lisp")
-    "Directory of personal configuration.")
-  (add-to-list 'load-path (expand-file-name my-lisp-dir))
-  (add-to-list 'default-frame-alist '(fullscreen . fullboth)) 
+(defconst my-lisp-dir (concat my-emacs-d "lisp")
+   "Directory of personal configuration.")
+(add-to-list 'load-path (expand-file-name my-lisp-dir))
+(add-to-list 'default-frame-alist '(fullscreen . fullboth)) 
 
-  (set-face-attribute 'default nil :height 140)
+(set-face-attribute 'default nil :height 140)
 
-  (add-hook 'MAJOR-MODE-local-vars-hook #'lsp!)
+(add-hook 'MAJOR-MODE-local-vars-hook #'lsp!)
 
-  (global-set-key (kbd "C-c w") #'writeroom-mode)
-  (global-set-key (kbd "C-c a") #'org-agenda)
+(global-set-key (kbd "C-c w") #'writeroom-mode)
+(global-set-key (kbd "C-c a") #'org-agenda)
   
 (require 'init-org)
 (require 'init-neotree)
