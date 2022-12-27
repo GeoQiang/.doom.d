@@ -1,0 +1,10 @@
+# -*- mode: snippet -*-
+# name: insert essays
+# key: ie
+# --
+
+#+BEGIN_EXPORT html
+<div class="jk-essay">
+$1
+</div>
+#+END_EXPORT

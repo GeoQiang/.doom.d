@@ -1,0 +1,14 @@
+# -*- mode: snippet -*-
+# name: insert img online
+# key: iio
+# --
+#+BEGIN_EXPORT html
+<img
+    src="$1"
+    width="$2"
+    style="$3"
+    alt="$4"
+/>
+#+END_EXPORT
+
+$5

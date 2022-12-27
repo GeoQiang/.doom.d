@@ -1,0 +1,10 @@
+# -*- mode: snippet -*-
+# name: insert rainbow
+# key: ir
+# --
+
+#+BEGIN_EXPORT html
+<div class="jk-rainbow">
+$1
+</div>
+#+END_EXPORT

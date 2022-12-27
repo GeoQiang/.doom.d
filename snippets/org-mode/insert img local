@@ -1,0 +1,11 @@
+# -*- mode: snippet -*-
+# name: insert img local
+# key: iil
+# --
+
+
+#+ATTR_HTML: :class rounded-border
+[[../images/$1]]
+
+$2     
+
