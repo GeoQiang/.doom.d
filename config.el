@@ -14,10 +14,14 @@
 
 (add-hook 'MAJOR-MODE-local-vars-hook #'lsp!)
 
+;;调节鼠标滚动
+(setq mouse-wheel-scroll-amount '(2 ((shift) . 1) ((control) . nil)))
+(setq mouse-wheel-progressive-speed nil)
+
 (global-set-key (kbd "C-c w") #'writeroom-mode)
 (global-set-key (kbd "C-c a") #'org-agenda)
 (global-set-key [f8] 'neotree-toggle)
-
+(global-set-key (kbd "C-s") 'consult-line)
 
 ;; Some functionality uses this to identify you, e.g. GPG configuration, email
 ;; clients, file templates and snippets. It is optional.
@@ -120,7 +124,7 @@
                            ("~/Dropbox/Todo/archive.org" :maxlevel . 4)))
 
 ;;; beautifying
-(setq org-agenda-span 1)
+(setq org-agenda-span 7)
 (setq org-ellipsis " ▾ ")
 (setq org-superstar-headline-bullets-list '(" " " " " " " " " " " "))
 (setq
@@ -165,7 +169,7 @@
 ;;; hook conf
 (add-hook 'org-mode-hook #'variable-pitch-mode)
 (add-hook 'org-mode-hook #'writeroom-mode)
-(add-hook 'org-mode-hook #'hide-mode-line-mode)
+;; (add-hook 'org-mode-hook #'hide-mode-line-mode)
 (add-hook 'org-mode-hook 'turn-on-auto-fill)
 
 ;; automatic line wrapping
@@ -175,7 +179,22 @@
 
 (after! neotree
 ;; neotree conf
-(setq neo-show-hidden-files 'nil)
+(setq-default neo-show-hidden-files 'nil)
 (setq projectile-switch-project-action 'neotree-projectile-action)
 (setq neo-smart-open 'nil)
+)
+
+(after! elfeed
+(elfeed-goodies/setup)
+(setq elfeed-goodies/entry-pane-size 0.6)
+(evil-define-key 'normal elfeed-show-mode-map
+	(kbd "J") 'elfeed-goodies/split-show-next
+	(kbd "K") 'elfeed-goodies/split-show-prev)
+(evil-define-key 'normal elfeed-search-mode-map
+	(kbd "J") 'elfeed-goodies/split-show-next
+	(kbd "K") 'elfeed-goodies/split-show-prev)	
+(setq-default elfeed-feeds (quote
+			(("https://linux.cn/rss.xml" linux)
+			("http://127.0.0.1:1200/xiaohongshu/user/579b0c3b5e87e722a8af1610/notes" fashion))
+			))
 )

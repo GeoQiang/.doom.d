@@ -5,7 +5,7 @@
  ;; If there is more than one, they won't work right.
  '(org-agenda-files
    '("/home/geo/Dropbox/Todo/remind.org" "/home/geo/Dropbox/Todo/project.org"))
- '(package-selected-packages '(ox-hugo org-pomodoro writeroom-mode)))
+ '(package-selected-packages '(youdao-dictionary ox-hugo org-pomodoro writeroom-mode)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
