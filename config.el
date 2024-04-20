@@ -8,7 +8,7 @@
 (defconst my-lisp-dir (concat my-emacs-d "lisp")
    "Directory of personal configuration.")
 (add-to-list 'load-path (expand-file-name my-lisp-dir))
-(add-to-list 'default-frame-alist '(fullscreen . fullboth)) 
+;; (add-to-list 'default-frame-alist '(fullscreen . fullboth)) 
 
 (set-face-attribute 'default nil :height 140)
 
@@ -20,6 +20,7 @@
 
 (global-set-key (kbd "C-c w") #'writeroom-mode)
 (global-set-key (kbd "C-c a") #'org-agenda)
+(global-set-key (kbd "C-c r") #'org-capture)
 (global-set-key [f8] 'neotree-toggle)
 (global-set-key (kbd "C-s") 'consult-line)
 
@@ -124,7 +125,7 @@
                            ("~/Dropbox/Todo/archive.org" :maxlevel . 4)))
 
 ;;; beautifying
-(setq org-agenda-span 7)
+(setq org-agenda-span 5)
 (setq org-ellipsis " ▾ ")
 (setq org-superstar-headline-bullets-list '(" " " " " " " " " " " "))
 (setq
@@ -134,6 +135,13 @@
   org-hide-emphasis-markers t)
 
 (setq org-log-done 'time)
+
+(setq org-capture-templates
+      '(("t" "thought" entry (file+headline "~/Dropbox/Todo/inbox.org")
+         "* %?\n  %i\n %U"
+         :empty-lines 1)
+         ("j" "Journal" entry (file+datetree "~/Dropbox/notes/journal.org")
+         "* %?\nEntered on %U\n %i\n %a")))
 
 (setq! org-todo-keywords '((sequence "TODO" "PROGRESS" "|" "DONE" "ABORT")))
 
@@ -168,20 +176,37 @@
 
 ;;; hook conf
 (add-hook 'org-mode-hook #'variable-pitch-mode)
-(add-hook 'org-mode-hook #'writeroom-mode)
+;; (add-hook 'org-mode-hook #'writeroom-mode)
 ;; (add-hook 'org-mode-hook #'hide-mode-line-mode)
 (add-hook 'org-mode-hook 'turn-on-auto-fill)
+
+
+(setq org-roam-directory "~/roam")
+(use-package! websocket
+    :after org-roam)
+
+(use-package! org-roam-ui
+    :after org-roam ;; or :after org
+;;         normally we'd recommend hooking orui after org-roam, but since org-roam does not have
+;;         a hookable mode anymore, you're advised to pick something yourself
+;;         if you don't care about startup time, use
+;;  :hook (after-init . org-roam-ui-mode)
+    :config
+    (setq org-roam-ui-sync-theme t
+          org-roam-ui-follow t
+          org-roam-ui-update-on-save t
+          org-roam-ui-open-on-start t))
+
 
 ;; automatic line wrapping
 (add-hook 'org-mode-hook (lambda() (setq truncate-lines nil)))
 )
 
-
-(after! neotree
 ;; neotree conf
-(setq-default neo-show-hidden-files 'nil)
+(after! neotree
+(setq-default neo-show-hidden-files nil)
 (setq projectile-switch-project-action 'neotree-projectile-action)
-(setq neo-smart-open 'nil)
+(setq neo-smart-open t)
 )
 
 (after! elfeed
@@ -195,6 +220,9 @@
 	(kbd "K") 'elfeed-goodies/split-show-prev)	
 (setq-default elfeed-feeds (quote
 			(("https://linux.cn/rss.xml" linux)
-			("http://127.0.0.1:1200/xiaohongshu/user/579b0c3b5e87e722a8af1610/notes" fashion))
+			("https://rsshub.app/cnki/journals/TSQB" 图书情报工作)
+			("https://rsshub.app/cnki/journals/QBXB" 情报学报)
+			)
 			))
 )
+
