@@ -6,7 +6,7 @@
  '(org-agenda-files
    '("/home/geo/Dropbox/Todo/remind.org" "/home/geo/Dropbox/Todo/project.org"))
  '(package-selected-packages
-   '(python-mode org-roam-ui simple-httpd websocket org-download deft pdf-tools lsp-pyright lsp-python-ms youdao-dictionary ox-hugo org-pomodoro writeroom-mode)))
+   '(org-bullets cal-china-x python-mode org-roam-ui simple-httpd websocket org-download deft pdf-tools lsp-pyright lsp-python-ms youdao-dictionary ox-hugo org-pomodoro writeroom-mode)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
