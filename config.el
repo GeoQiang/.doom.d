@@ -53,7 +53,7 @@
 ;; There are two ways to load a theme. Both assume the theme is installed and
 ;; available. You can either set `doom-theme' or manually load a theme with the
 ;; `load-theme' function. This is the default:
-(setq doom-theme 'doom-one)
+(setq doom-theme 'doom-gruvbox-light)
 
 ;; This determines the style of line numbers in effect. If set to `nil', line
 ;; numbers are disabled. For relative line numbers, set this to `relative'.
@@ -130,10 +130,13 @@
 (setq org-superstar-headline-bullets-list '(" " " " " " " " " " " "))
 (setq
   ;; hide * before headings
-  org-hide-leading-stars t
+  ;; org-hide-leading-stars t
   ;; show actually italicized text instead of /italicized text/
-  org-hide-emphasis-markers t)
-
+  org-hide-emphasis-markers t
+  ;; no bullets, needs org-bullets package
+  org-bullets-bullet-list '(" "))
+  
+(setq header-line-format " ")
 (setq org-log-done 'time)
 
 (setq org-capture-templates
@@ -176,12 +179,13 @@
 
 ;;; hook conf
 (add-hook 'org-mode-hook #'variable-pitch-mode)
+(add-hook 'org-mode-hook #'org-bullets-mode)
 ;; (add-hook 'org-mode-hook #'writeroom-mode)
 ;; (add-hook 'org-mode-hook #'hide-mode-line-mode)
 (add-hook 'org-mode-hook 'turn-on-auto-fill)
 
 
-(setq org-roam-directory "~/roam")
+(setq org-roam-directory "~/Dropbox/roam")
 (use-package! websocket
     :after org-roam)
 
