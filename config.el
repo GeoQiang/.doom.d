@@ -8,7 +8,7 @@
 (defconst my-lisp-dir (concat my-emacs-d "lisp")
    "Directory of personal configuration.")
 (add-to-list 'load-path (expand-file-name my-lisp-dir))
-;; (add-to-list 'default-frame-alist '(fullscreen . fullboth)) 
+(add-to-list 'default-frame-alist '(fullscreen . fullboth))
 
 (set-face-attribute 'default nil :height 140)
 
@@ -213,20 +213,4 @@
 (setq neo-smart-open t)
 )
 
-(after! elfeed
-(elfeed-goodies/setup)
-(setq elfeed-goodies/entry-pane-size 0.6)
-(evil-define-key 'normal elfeed-show-mode-map
-	(kbd "J") 'elfeed-goodies/split-show-next
-	(kbd "K") 'elfeed-goodies/split-show-prev)
-(evil-define-key 'normal elfeed-search-mode-map
-	(kbd "J") 'elfeed-goodies/split-show-next
-	(kbd "K") 'elfeed-goodies/split-show-prev)	
-(setq-default elfeed-feeds (quote
-			(("https://linux.cn/rss.xml" linux)
-			("https://rsshub.app/cnki/journals/TSQB" 图书情报工作)
-			("https://rsshub.app/cnki/journals/QBXB" 情报学报)
-			)
-			))
-)
 
