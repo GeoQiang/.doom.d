@@ -3,8 +3,6 @@
 # key: in
 # --
 
-#+BEGIN_EXPORT html
-<div class="jk-note">
+#+BEGIN_EXAMPLE
 $1
-</div>
-#+END_EXPORT
+#+END_EXAMPLE
