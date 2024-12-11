@@ -146,19 +146,19 @@
          ("j" "Journal" entry (file+datetree "~/Dropbox/notes/journal.org")
          "* %?\nEntered on %U\n %i\n %a")))
 
-(setq! org-todo-keywords '((sequence "TODO" "PROGRESS" "|" "DONE" "ABORT")))
+(setq! org-todo-keywords '((sequence "To Do" "In Progress" "|" "Completed" "Abort")))
 
 (setq org-todo-keyword-faces
-  '(("TODO" . "#ab5183")
-    ("PROGRESS" . "#4d96c6")
-    ("ABORT" . "#f78c2c")
-    ("DONE" . "#d92947")))
+  '(("To Do" . "#ab5183")
+    ("In Progress" . "#4d96c6")
+    ("Completed" . "#f78c2c")
+    ("Abort" . "#d92947")))
 
 (setq hl-todo-keyword-faces
-  '(("TODO" . "#ab5183")
-    ("PROGRESS" . "#4d96c6")
-    ("ABORT" . "#f78c2c")
-    ("DONE" . "#d92947")))
+  '(("To Do" . "#ab5183")
+    ("In Progress" . "#4d96c6")
+    ("Completed" . "#f78c2c")
+    ("Abort" . "#d92947")))
 
 ;; modify the image size
 (setq org-image-actual-width (/ (display-pixel-width) 3))
