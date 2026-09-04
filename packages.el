@@ -12,6 +12,11 @@
 (unpin! org-roam)
 (package! org-roam-ui)
 (package! org-bullets)
+(package! org-pretty-table
+  :recipe (:host github :repo "Fuco1/org-pretty-table"))
+(package! inheritenv)
+(package! claude-code
+  :recipe (:host github :repo "stevemolitor/claude-code.el"))
 
 
 ;; To install SOME-PACKAGE from MELPA, ELPA or emacsmirror:

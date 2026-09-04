@@ -4,7 +4,7 @@
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(org-agenda-files
-   '("/home/geo/Dropbox/Todo/remind.org" "/home/geo/Dropbox/Todo/project.org"))
+   '("/Users/geo/Dropbox/GTD/project.org"))
  '(package-selected-packages
    '(org-bullets cal-china-x python-mode org-roam-ui simple-httpd websocket org-download deft pdf-tools lsp-pyright lsp-python-ms youdao-dictionary ox-hugo org-pomodoro writeroom-mode)))
 (custom-set-faces
