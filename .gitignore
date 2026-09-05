@@ -1,0 +1,3 @@
+bin/rss-check.log
+bin/rss-check-launchd.log
+bin/__pycache__/

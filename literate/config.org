@@ -38,6 +38,22 @@ babel 文学化方式组织：
 
 全屏示例（按需启用）：=(add-to-list 'default-frame-alist '(fullscreen . fullboth))=
 
+* PATH 同步（exec-path-from-shell）
+
+macOS 上从 Dock/Spotlight 启动的 GUI Emacs 不会继承交互 shell 的
+~PATH~——只有从终端里 ~emacs~ 启动才凑巧能用。~claude-code.el~、cch、
+dsh、gptel 这些都要 ~executable-find~ 或直接 shell 出去找 ~claude~ /
+~dsh~ 之类的命令，PATH 不对就会报"program not found in PATH"（哪怕
+终端里 ~which claude~ 明明有）。用 [[https://github.com/purcell/exec-path-from-shell][exec-path-from-shell]] 在启动时把交互 shell
+的 ~PATH~ 抄一份过来，一劳永逸。
+
+#+begin_src emacs-lisp
+(when (memq window-system '(mac ns x))
+  (require 'exec-path-from-shell)
+  (setq exec-path-from-shell-variables '("PATH"))
+  (exec-path-from-shell-initialize))
+#+end_src
+
 * 外观与编辑习惯
 
 ** 默认字号
@@ -145,14 +161,17 @@ babel 文学化方式组织：
 ~emacsclient --eval~ 调用。每个函数返回一个 JSON 字符串（用 ~json-encode~），
 方便 Swift 那边直接解析，不用去啃 elisp 的 prin1 转义。
 
+计时权威在 Mac app 一侧（它自己有倒计时逻辑），Emacs 这边只在专注段
+**开始**和**结束**这两个时刻各被调用一次（clock-in / clock-out），中途
+完全不通信、不用 org-pomodoro 自己的计时器——避免两边计时器各转各的、
+互相打架。
+
 - ~my/pomodoro-bridge-list-todos~ —— 列出 org-agenda-files 里所有未完成的
   TODO，带 file/pos/heading/path，供 Mac app 弹窗选择。
-- ~my/pomodoro-bridge-clock-start~ —— 按 Mac app 传回的 file/pos/heading
-  在对应标题下 clock-in 并开始一个 org-pomodoro。
-- ~my/pomodoro-bridge-status~ —— 查询当前 org-pomodoro 状态/剩余秒数/正在
-  clock 的标题，Mac app 用来同步菜单栏倒计时显示。
-- ~my/pomodoro-bridge-stop~ —— 终止当前番茄并 clock-out（对应 Mac app 的
-  "暂停"按钮，因为 org-pomodoro 本身没有真正的暂停）。
+- ~my/pomodoro-bridge-clock-in~ —— 按 Mac app 传回的 file/pos/heading 在
+  对应标题下 clock-in（只记账，不启动 org-pomodoro 自己的计时器）。
+- ~my/pomodoro-bridge-clock-out~ —— 结束当前 clock（Mac app 倒计时走完，
+  或用户在 Mac app 里点"终止"时调用一次）。
 - ~my/pomodoro-bridge-stats~ —— 按标题统计今天/近 7 天的 clock 时长，
   给 Mac app 的统计面板用，直接复用 org-clock-sum，不在 Swift 里重新解析
   LOGBOOK。
@@ -160,7 +179,6 @@ babel 文学化方式组织：
 #+begin_src emacs-lisp
 (after! org
   (require 'json)
-  (require 'org-pomodoro)
 
   (defun my/pomodoro-bridge--todo-p ()
     (let ((state (org-get-todo-state)))
@@ -186,8 +204,9 @@ babel 文学化方式组织：
               nil 'file)))))
       (json-encode (nreverse entries))))
 
-  (defun my/pomodoro-bridge-clock-start (file pos heading)
-    "在 FILE:POS（校验标题文本等于 HEADING）处 clock-in 并开始 org-pomodoro。"
+  (defun my/pomodoro-bridge-clock-in (file pos heading)
+    "在 FILE:POS（校验标题文本等于 HEADING）处 clock-in。只记账，不涉及
+org-pomodoro 自己的计时器——Mac app 才是计时权威。"
     (condition-case err
         (progn
           (with-current-buffer (find-file-noselect file)
@@ -203,29 +222,15 @@ babel 文学化方式组织：
               (beginning-of-line))
             (when (org-clocking-p) (org-clock-out))
             (org-clock-in)
-            (save-buffer)
-            (org-pomodoro-start :pomodoro))
+            (save-buffer))
           (json-encode (list (cons "ok" t))))
       (error (json-encode (list (cons "ok" :json-false)
                                  (cons "error" (error-message-string err)))))))
 
-  (defun my/pomodoro-bridge-status ()
-    "当前 org-pomodoro 状态，JSON：{state, remaining, heading, count}。"
-    (json-encode
-     (list (cons "state" (symbol-name (or org-pomodoro-state :none)))
-           (cons "remaining" (if (org-pomodoro-active-p)
-                                  (round (org-pomodoro-remaining-seconds))
-                                0))
-           (cons "heading" (if (org-clocking-p)
-                                (substring-no-properties org-clock-heading)
-                              ""))
-           (cons "count" org-pomodoro-count))))
-
-  (defun my/pomodoro-bridge-stop ()
-    "终止当前番茄并 clock-out（已计时部分会保留，见 org-pomodoro-keep-killed-pomodoro-time）。"
+  (defun my/pomodoro-bridge-clock-out ()
+    "结束当前 clock（Mac app 那边的专注段走完，或用户点了终止）。"
     (condition-case err
         (let ((buf (and (org-clocking-p) (marker-buffer org-clock-marker))))
-          (when (org-pomodoro-active-p) (org-pomodoro-kill))
           (when (org-clocking-p) (org-clock-out))
           (when buf (with-current-buffer buf (save-buffer)))
           (json-encode (list (cons "ok" t))))
@@ -282,7 +287,6 @@ babel 文学化方式组织：
 (after! org
   (setq org-agenda-span 5)
   (setq org-startup-indented t              ; 标题按层级缩进
-        org-bullets-bullet-list '(" ")      ; 不用符号，纯文字排版（需 org-bullets）
         org-ellipsis " ▾ "                  ; 折叠符号
         org-pretty-entities t               ; \alpha → α
         org-hide-emphasis-markers t         ; /斜体/ 直接显示为斜体
@@ -297,6 +301,23 @@ babel 文学化方式组织：
   (when (frame-live-p (selected-frame))
     (set-frame-parameter (selected-frame) 'internal-border-width 2))
   (setq org-log-done 'time))
+#+end_src
+
+** 标题星号：每级一颗，按层级上色
+
+改主意了：不再把星号藏起来，而是**每级标题只露出一颗星**（原生
+~org-hide-leading-stars~，把前面几颗星和背景同色隐去，只留最后一颗），
+颜色跟下面「字体与 faces」一节里 ~org-level-N~ 的前景色走——那颗星和
+标题正文本来就共用同一个 face，改 face 颜色两边一起变。
+
+~org-modern-star~ 这边关掉，避免它自己的星号替换逻辑跟这套原生方案打架。
+
+#+begin_src emacs-lisp
+(after! org
+  (setq org-modern-star nil
+        org-modern-hide-stars nil   ; org-modern 自己的隐藏星号开关，一起关掉
+        org-hide-leading-stars t
+        org-modern-todo nil))      ; TODO 关键字不要色块徽章，用已有的纯文字变色
 #+end_src
 
 * Org：快速捕获模板
@@ -369,6 +390,18 @@ Iowan Old Style），标题用近黑墨色、以字号与斜体区分层级；�
 (defconst my/org-serif-mono-font
   (my/first-available-font '("Verily Serif Mono")
                            my/org-mono-font))
+
+;; 中文字体：配合 ETBook 用霞鹜文楷（楷体，跟 ETBook 的人文衬线气质更搭，
+;; 比宋体/黑体更合适）。ETBook 本身没有中文字形，靠 set-fontset-font
+;; 把中日韩范围单独指过去，不影响西文走 my/org-serif-font。
+(defconst my/org-cjk-font
+  (my/first-available-font '("LXGW WenKai" "PingFang SC" "STKaiti")
+                           "PingFang SC"))
+#+end_src
+
+#+begin_src emacs-lisp
+;; 全局生效：所有 buffer 里的中日韩字符都走这个字体，不止 org
+(set-fontset-font t 'han (font-spec :family my/org-cjk-font) nil 'prepend)
 #+end_src
 
 #+begin_src emacs-lisp
@@ -377,7 +410,7 @@ Iowan Old Style），标题用近黑墨色、以字号与斜体区分层级；�
   (when (featurep 'org)
     (require 'org-faces)
     (require 'org-indent)
-    (let ((ink "#1c1e1f")    ; 墨色：标题与正文
+    (let ((ink "#1c1e1f")    ; 墨色：正文
           (muted "#8a8a8a")  ; 弱化：日期、特殊行、block 首尾
           (code "#525254"))  ; 代码前景
     ;; 基础字体
@@ -392,23 +425,24 @@ Iowan Old Style），标题用近黑墨色、以字号与斜体区分层级；�
                         :underline nil)
     (set-face-attribute 'org-document-info nil
                         :family my/org-serif-font :height 1.2 :slant 'italic)
-    ;; 标题：墨色 + 层级缩放/斜体（不用彩色）
+    ;; 标题：每级一个颜色（星号跟标题正文共用同一个 face，一起上色），
+    ;; 层级缩放/斜体照旧保留
     (set-face-attribute 'org-level-1 nil :inherit nil :family my/org-serif-font
-                        :height 1.6 :foreground ink)
+                        :height 1.6 :foreground "#1c1e1f")
     (set-face-attribute 'org-level-2 nil :inherit nil :family my/org-serif-font
-                        :height 1.4 :slant 'italic :foreground ink)
+                        :height 1.4 :slant 'italic :foreground "#ab5183")
     (set-face-attribute 'org-level-3 nil :inherit nil :family my/org-serif-font
-                        :height 1.25 :slant 'italic :foreground ink)
+                        :height 1.25 :slant 'italic :foreground "#4d96c6")
     (set-face-attribute 'org-level-4 nil :inherit nil :family my/org-serif-font
-                        :height 1.1 :slant 'italic :foreground ink)
+                        :height 1.1 :slant 'italic :foreground "#8a6dc9")
     (set-face-attribute 'org-level-5 nil :inherit nil :family my/org-serif-font
-                        :height 1.0 :weight 'bold :foreground ink)
+                        :height 1.0 :weight 'bold :foreground "#f78c2c")
     (set-face-attribute 'org-level-6 nil :inherit nil :family my/org-serif-font
-                        :height 1.0 :weight 'bold :foreground ink)
+                        :height 1.0 :weight 'bold :foreground "#3a6b35")
     (set-face-attribute 'org-level-7 nil :inherit nil :family my/org-serif-font
-                        :height 1.0 :weight 'bold :foreground ink)
+                        :height 1.0 :weight 'bold :foreground "#6f4e37")
     (set-face-attribute 'org-level-8 nil :inherit nil :family my/org-serif-font
-                        :height 1.0 :weight 'bold :foreground ink)
+                        :height 1.0 :weight 'bold :foreground "#45707a")
     ;; 完成标题加删除线
     (set-face-attribute 'org-headline-done nil :strike-through t)
     ;; 链接与弱化文字
@@ -449,7 +483,7 @@ Iowan Old Style），标题用近黑墨色、以字号与斜体区分层级；�
 
 (after! org
   (add-hook 'org-mode-hook #'variable-pitch-mode) ; 正文衬线
-  (add-hook 'org-mode-hook #'org-bullets-mode)    ; 项目符号（已设为空格）
+  (add-hook 'org-mode-hook #'org-modern-mode)     ; 标题星号（已设为空格）
   (add-hook 'org-mode-hook #'turn-on-auto-fill)   ; 自动 fill 换行
   (add-hook 'org-mode-hook #'my/org-side-padding) ; 左右留白
   (add-hook 'org-mode-hook #'org-pretty-table-mode) ; 漂亮表格边框
@@ -538,3 +572,139 @@ Iowan Old Style），标题用近黑墨色、以字号与斜体区分层级；�
 #+begin_src emacs-lisp
 (load! "cch" (expand-file-name "lisp" doom-user-dir))
 #+end_src
+
+* gptel（多轮聊天 + 选区改写）集成
+
+上面 claude-code/dsh/cch 三个都是"发一句、等一个结果"的模式（要么是交互式
+终端会话，要么是单次问答）。[[https://github.com/karthink/gptel][gptel]] 补的是另一种形态：一个真正的多轮对话
+buffer（org-mode 写的，问答历史就是文档本身，可以回头编辑、折叠、另存），
+外加 ~gptel-rewrite~ 直接对选中区域做"改写并预览 diff"。
+
+后端配了两个，跟 Claude/DeepSeek 都能聊，随时用 ~gptel-menu~（~C-c g m~）切换：
+- Claude（Anthropic 原生 API，不是 claude CLI）
+- DeepSeek（OpenAI 兼容接口）
+
+*密钥不写在配置里*，走 auth-source（~~/.authinfo.gpg~）读取。首次使用前
+用 GPG 加密创建这个文件，内容两行：
+
+#+begin_example
+machine api.anthropic.com login gptel password sk-ant-你的key
+machine api.deepseek.com login gptel password sk-你的key
+#+end_example
+
+（没有 DeepSeek key 也没关系，只是 ~gptel-menu~ 里切不过去那个后端而已，
+Claude 后端不受影响。）
+
+快捷键：
+- ~C-c g g~ / ~SPC g g~ — 打开/切到 gptel 聊天 buffer
+- ~C-c g s~ / ~SPC g s~ — 发送当前 buffer（续聊）
+- ~C-c g m~ / ~SPC g m~ — 命令菜单（切后端/切模型/切系统提示等）
+- ~C-c g r~ — 选中区域，用模型改写，改写结果先以 diff 形式预览再决定是否应用
+
+#+begin_src emacs-lisp
+(use-package! gptel
+  :commands (gptel gptel-send gptel-menu gptel-rewrite)
+  :init
+  (setq gptel-default-mode 'org-mode)
+  :config
+  (setq gptel-backend
+        (gptel-make-anthropic "Claude"
+          :stream t
+          :key (lambda ()
+                 (auth-source-pick-first-password
+                  :host "api.anthropic.com" :user "gptel"))
+          :models '(claude-sonnet-5 claude-opus-5 claude-haiku-4-5-20251001)))
+  (setq gptel-model 'claude-sonnet-5)
+
+  (gptel-make-openai "DeepSeek"
+    :host "api.deepseek.com"
+    :endpoint "/chat/completions"
+    :stream t
+    :key (lambda ()
+           (auth-source-pick-first-password
+            :host "api.deepseek.com" :user "gptel"))
+    :models '(deepseek-chat deepseek-reasoner))
+  :bind (("C-c g g" . gptel)
+         ("C-c g s" . gptel-send)
+         ("C-c g m" . gptel-menu)
+         ("C-c g r" . gptel-rewrite)))
+
+(when (fboundp 'map!)
+  (map! :leader
+        :desc "gptel: 打开聊天窗口" "g g" #'gptel
+        :desc "gptel: 发送/续聊"    "g s" #'gptel-send
+        :desc "gptel: 命令菜单"     "g m" #'gptel-menu
+        :desc "gptel: 改写选区"     "g r" #'gptel-rewrite))
+#+end_src
+
+* 期刊 RSS 订阅（elfeed）
+
+用 =(rss +org)= 模块（已在 =init.el= 里启用）读图书情报学期刊的新文章。订阅列表在
+=~/Dropbox/org-literate/elfeed.org=（即 =org-directory/elfeed.org=，elfeed-org 的
+默认位置），已经收录了 17 个中文核心期刊（知网 RSS）+ JASIST（Wiley 官方 RSS）。
+
+- ~SPC o r~ 或 ~M-x =rss=~ — 在独立 workspace 里打开 elfeed 阅读器
+- ~s~ — 修改过滤条件（默认显示最近 2 周，~elfeed-search-filter~）
+- ~RET~ — 打开当前条目；~S-RET~ — 直接用浏览器打开链接
+- ~r~ — 强制刷新所有订阅源（拉取新文章）
+- 改了 =elfeed.org= 之后按 ~r~ 或 ~M-x elfeed-update~ 即可生效，不需要 =doom sync=
+
+** 知网源刷新会重复的问题
+
+知网 =rss.cnki.net= 的每条 =<item>= 都没有 =<guid>=，=<link>= 里还带一段
+每次请求都重新生成的追踪 token（形如
+=kcms2/article/abstract?v=随机串&...=）。elfeed 给条目算 id 时优先用
+guid，没有就退而用 link——同一篇论文，这次刷新和下次刷新链接里的 token
+不一样，id 也就跟着变，于是被当成两条不同的新文章重复收进来（标题、
+内容其实完全一样）。JASIST 等有正规 guid/DOI 链接的源不受影响。
+
+解法是把知网这几个源的 id 换成「命名空间 + 标题」，标题没变就还是同一
+条目，elfeed 会走合并（=elfeed-entry-merge=）而不是新建，已读/星标状态
+也不会丢：
+
+#+begin_src emacs-lisp
+(after! elfeed
+  (defun +rss-cnki-stabilize-id (type _item entry)
+    "稳定知网 RSS 条目的 id，避免链接里的随机追踪 token 导致刷新出重复文章。"
+    (when (and (eq type :rss)
+               (string-match-p "rss\\.cnki\\.net" (elfeed-entry-feed-id entry)))
+      (setf (elfeed-entry-id entry)
+            (cons (car (elfeed-entry-id entry))
+                  (elfeed-entry-title entry)))))
+  (add-hook 'elfeed-new-entry-parse-hook #'+rss-cnki-stabilize-id))
+#+end_src
+
+（2026-09-05 已经手动清过一次数据库把之前的重复条目清空了，不需要再跑
+一遍。以后再遇到类似"某个源没有稳定 guid/链接会变"的情况，参照上面
+这段 hook 的写法处理，而不是清空整个数据库——清库是一次性手动操作，
+不要把它写成会被 tangle 进 config.el、每次启动 Emacs 都执行的代码块。）
+
+#+begin_src emacs-lisp
+(when (fboundp 'map!)
+  (map! :leader
+        :desc "elfeed: 打开期刊订阅阅读器" "o r" #'=rss))
+#+end_src
+
+** 每天自动检测订阅源是否失效
+
+2026-09-05 加了一个独立于 Emacs 的每日健康检查（不是 elisp，是普通脚本 +
+macOS launchd，即使 Emacs 没开着也会跑）：
+
+- 脚本：[[file:~/.config/doom/bin/check-rss-feeds.py][bin/check-rss-feeds.py]] ——
+  读 =elfeed.org= 里的订阅列表（单一数据源，不用再维护第二份），对每个源
+  发请求，检查 HTTP 状态、是不是合法 RSS/Atom、有没有文章条目
+- 定时器：=~/Library/LaunchAgents/com.geo.rss-feed-check.plist=，每天
+  9:00 触发一次
+- 有源失效时弹 macOS 桌面通知；全部正常则不打扰
+- 每次运行结果覆盖写在 =bin/rss-check.log=（launchd 自身的 stdout/stderr
+  在 =bin/rss-check-launchd.log=），只保留最近一次，不会一直变大
+
+需要临时关掉：=launchctl bootout gui/$(id -u)/com.geo.rss-feed-check=
+需要手动跑一次：=launchctl kickstart gui/$(id -u)/com.geo.rss-feed-check=
+彻底卸载：上面 bootout 之后把 plist 和 =bin/= 下这两个脚本/日志文件删掉即可。
+
+新加的订阅不用额外配置——脚本每次都是现读 =elfeed.org=，加完直接下一次
+就会被测到。失效之后**不会自动找替换源顶上**——找替换源需要上网搜索、
+验证候选链接，这类判断交给固定脚本做风险更大（乱猜的候选源可能是错的，
+写错了反而更麻烦），2026-09-05 明确决定保持"检测自动、修复找 Claude
+手动处理"这个分工，不做无人值守的自动修复。

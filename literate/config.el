@@ -4,6 +4,11 @@
   "Directory of personal configuration.")
 (add-to-list 'load-path my-lisp-dir)
 
+(when (memq window-system '(mac ns x))
+  (require 'exec-path-from-shell)
+  (setq exec-path-from-shell-variables '("PATH"))
+  (exec-path-from-shell-initialize))
+
 (set-face-attribute 'default nil :height 140)
 
 (add-hook 'MAJOR-MODE-local-vars-hook #'lsp!)
@@ -58,7 +63,6 @@
 
 (after! org
   (require 'json)
-  (require 'org-pomodoro)
 
   (defun my/pomodoro-bridge--todo-p ()
     (let ((state (org-get-todo-state)))
@@ -84,8 +88,9 @@
               nil 'file)))))
       (json-encode (nreverse entries))))
 
-  (defun my/pomodoro-bridge-clock-start (file pos heading)
-    "在 FILE:POS（校验标题文本等于 HEADING）处 clock-in 并开始 org-pomodoro。"
+  (defun my/pomodoro-bridge-clock-in (file pos heading)
+    "在 FILE:POS（校验标题文本等于 HEADING）处 clock-in。只记账，不涉及
+org-pomodoro 自己的计时器——Mac app 才是计时权威。"
     (condition-case err
         (progn
           (with-current-buffer (find-file-noselect file)
@@ -101,29 +106,15 @@
               (beginning-of-line))
             (when (org-clocking-p) (org-clock-out))
             (org-clock-in)
-            (save-buffer)
-            (org-pomodoro-start :pomodoro))
+            (save-buffer))
           (json-encode (list (cons "ok" t))))
       (error (json-encode (list (cons "ok" :json-false)
                                  (cons "error" (error-message-string err)))))))
 
-  (defun my/pomodoro-bridge-status ()
-    "当前 org-pomodoro 状态，JSON：{state, remaining, heading, count}。"
-    (json-encode
-     (list (cons "state" (symbol-name (or org-pomodoro-state :none)))
-           (cons "remaining" (if (org-pomodoro-active-p)
-                                  (round (org-pomodoro-remaining-seconds))
-                                0))
-           (cons "heading" (if (org-clocking-p)
-                                (substring-no-properties org-clock-heading)
-                              ""))
-           (cons "count" org-pomodoro-count))))
-
-  (defun my/pomodoro-bridge-stop ()
-    "终止当前番茄并 clock-out（已计时部分会保留，见 org-pomodoro-keep-killed-pomodoro-time）。"
+  (defun my/pomodoro-bridge-clock-out ()
+    "结束当前 clock（Mac app 那边的专注段走完，或用户点了终止）。"
     (condition-case err
         (let ((buf (and (org-clocking-p) (marker-buffer org-clock-marker))))
-          (when (org-pomodoro-active-p) (org-pomodoro-kill))
           (when (org-clocking-p) (org-clock-out))
           (when buf (with-current-buffer buf (save-buffer)))
           (json-encode (list (cons "ok" t))))
@@ -169,7 +160,6 @@
 (after! org
   (setq org-agenda-span 5)
   (setq org-startup-indented t              ; 标题按层级缩进
-        org-bullets-bullet-list '(" ")      ; 不用符号，纯文字排版（需 org-bullets）
         org-ellipsis " ▾ "                  ; 折叠符号
         org-pretty-entities t               ; \alpha → α
         org-hide-emphasis-markers t         ; /斜体/ 直接显示为斜体
@@ -184,6 +174,12 @@
   (when (frame-live-p (selected-frame))
     (set-frame-parameter (selected-frame) 'internal-border-width 2))
   (setq org-log-done 'time))
+
+(after! org
+  (setq org-modern-star nil
+        org-modern-hide-stars nil   ; org-modern 自己的隐藏星号开关，一起关掉
+        org-hide-leading-stars t
+        org-modern-todo nil))      ; TODO 关键字不要色块徽章，用已有的纯文字变色
 
 (after! org
   (setq org-capture-templates
@@ -236,12 +232,22 @@
   (my/first-available-font '("Verily Serif Mono")
                            my/org-mono-font))
 
+;; 中文字体：配合 ETBook 用霞鹜文楷（楷体，跟 ETBook 的人文衬线气质更搭，
+;; 比宋体/黑体更合适）。ETBook 本身没有中文字形，靠 set-fontset-font
+;; 把中日韩范围单独指过去，不影响西文走 my/org-serif-font。
+(defconst my/org-cjk-font
+  (my/first-available-font '("LXGW WenKai" "PingFang SC" "STKaiti")
+                           "PingFang SC"))
+
+;; 全局生效：所有 buffer 里的中日韩字符都走这个字体，不止 org
+(set-fontset-font t 'han (font-spec :family my/org-cjk-font) nil 'prepend)
+
 (defun my/apply-org-rices ()
   "Apply Tufte-style Org faces (lepisma's Ricing up Org Mode)."
   (when (featurep 'org)
     (require 'org-faces)
     (require 'org-indent)
-    (let ((ink "#1c1e1f")    ; 墨色：标题与正文
+    (let ((ink "#1c1e1f")    ; 墨色：正文
           (muted "#8a8a8a")  ; 弱化：日期、特殊行、block 首尾
           (code "#525254"))  ; 代码前景
     ;; 基础字体
@@ -256,23 +262,24 @@
                         :underline nil)
     (set-face-attribute 'org-document-info nil
                         :family my/org-serif-font :height 1.2 :slant 'italic)
-    ;; 标题：墨色 + 层级缩放/斜体（不用彩色）
+    ;; 标题：每级一个颜色（星号跟标题正文共用同一个 face，一起上色），
+    ;; 层级缩放/斜体照旧保留
     (set-face-attribute 'org-level-1 nil :inherit nil :family my/org-serif-font
-                        :height 1.6 :foreground ink)
+                        :height 1.6 :foreground "#1c1e1f")
     (set-face-attribute 'org-level-2 nil :inherit nil :family my/org-serif-font
-                        :height 1.4 :slant 'italic :foreground ink)
+                        :height 1.4 :slant 'italic :foreground "#ab5183")
     (set-face-attribute 'org-level-3 nil :inherit nil :family my/org-serif-font
-                        :height 1.25 :slant 'italic :foreground ink)
+                        :height 1.25 :slant 'italic :foreground "#4d96c6")
     (set-face-attribute 'org-level-4 nil :inherit nil :family my/org-serif-font
-                        :height 1.1 :slant 'italic :foreground ink)
+                        :height 1.1 :slant 'italic :foreground "#8a6dc9")
     (set-face-attribute 'org-level-5 nil :inherit nil :family my/org-serif-font
-                        :height 1.0 :weight 'bold :foreground ink)
+                        :height 1.0 :weight 'bold :foreground "#f78c2c")
     (set-face-attribute 'org-level-6 nil :inherit nil :family my/org-serif-font
-                        :height 1.0 :weight 'bold :foreground ink)
+                        :height 1.0 :weight 'bold :foreground "#3a6b35")
     (set-face-attribute 'org-level-7 nil :inherit nil :family my/org-serif-font
-                        :height 1.0 :weight 'bold :foreground ink)
+                        :height 1.0 :weight 'bold :foreground "#6f4e37")
     (set-face-attribute 'org-level-8 nil :inherit nil :family my/org-serif-font
-                        :height 1.0 :weight 'bold :foreground ink)
+                        :height 1.0 :weight 'bold :foreground "#45707a")
     ;; 完成标题加删除线
     (set-face-attribute 'org-headline-done nil :strike-through t)
     ;; 链接与弱化文字
@@ -309,7 +316,7 @@
 
 (after! org
   (add-hook 'org-mode-hook #'variable-pitch-mode) ; 正文衬线
-  (add-hook 'org-mode-hook #'org-bullets-mode)    ; 项目符号（已设为空格）
+  (add-hook 'org-mode-hook #'org-modern-mode)     ; 标题星号（已设为空格）
   (add-hook 'org-mode-hook #'turn-on-auto-fill)   ; 自动 fill 换行
   (add-hook 'org-mode-hook #'my/org-side-padding) ; 左右留白
   (add-hook 'org-mode-hook #'org-pretty-table-mode) ; 漂亮表格边框
@@ -354,3 +361,51 @@
 (load! "dsh" (expand-file-name "lisp" doom-user-dir))
 
 (load! "cch" (expand-file-name "lisp" doom-user-dir))
+
+(use-package! gptel
+  :commands (gptel gptel-send gptel-menu gptel-rewrite)
+  :init
+  (setq gptel-default-mode 'org-mode)
+  :config
+  (setq gptel-backend
+        (gptel-make-anthropic "Claude"
+          :stream t
+          :key (lambda ()
+                 (auth-source-pick-first-password
+                  :host "api.anthropic.com" :user "gptel"))
+          :models '(claude-sonnet-5 claude-opus-5 claude-haiku-4-5-20251001)))
+  (setq gptel-model 'claude-sonnet-5)
+
+  (gptel-make-openai "DeepSeek"
+    :host "api.deepseek.com"
+    :endpoint "/chat/completions"
+    :stream t
+    :key (lambda ()
+           (auth-source-pick-first-password
+            :host "api.deepseek.com" :user "gptel"))
+    :models '(deepseek-chat deepseek-reasoner))
+  :bind (("C-c g g" . gptel)
+         ("C-c g s" . gptel-send)
+         ("C-c g m" . gptel-menu)
+         ("C-c g r" . gptel-rewrite)))
+
+(when (fboundp 'map!)
+  (map! :leader
+        :desc "gptel: 打开聊天窗口" "g g" #'gptel
+        :desc "gptel: 发送/续聊"    "g s" #'gptel-send
+        :desc "gptel: 命令菜单"     "g m" #'gptel-menu
+        :desc "gptel: 改写选区"     "g r" #'gptel-rewrite))
+
+(after! elfeed
+  (defun +rss-cnki-stabilize-id (type _item entry)
+    "稳定知网 RSS 条目的 id，避免链接里的随机追踪 token 导致刷新出重复文章。"
+    (when (and (eq type :rss)
+               (string-match-p "rss\\.cnki\\.net" (elfeed-entry-feed-id entry)))
+      (setf (elfeed-entry-id entry)
+            (cons (car (elfeed-entry-id entry))
+                  (elfeed-entry-title entry)))))
+  (add-hook 'elfeed-new-entry-parse-hook #'+rss-cnki-stabilize-id))
+
+(when (fboundp 'map!)
+  (map! :leader
+        :desc "elfeed: 打开期刊订阅阅读器" "o r" #'=rss))
